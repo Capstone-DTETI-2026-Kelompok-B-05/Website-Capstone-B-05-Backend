@@ -13,5 +13,13 @@ export const env = {
   mongoUri: process.env.MONGO_URI,
   mqttBrokerUrl: process.env.MQTT_BROKER_URL,
   clientOrigin: process.env.CLIENT_ORIGIN,
-  nodeEnv: process.env.NODE_ENV ?? 'development'
+  nodeEnv: process.env.NODE_ENV ?? 'development',
+  jwtSecret:
+    process.env.JWT_SECRET ??
+    (process.env.NODE_ENV === 'production'
+      ? (() => {
+          throw new Error('Missing required environment variable: JWT_SECRET');
+        })()
+      : 'development-only-change-this-jwt-secret'),
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? '1d'
 };
