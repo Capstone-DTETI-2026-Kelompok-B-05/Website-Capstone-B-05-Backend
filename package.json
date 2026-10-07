@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "node --watch server.js",
     "start": "node server.js",
+    "test:mqtt": "node test-mqtt.js",
     "test": "node --test"
   },
   "dependencies": {
@@ -15,6 +16,7 @@
     "express": "^5.1.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^8.19.1",
-    "morgan": "^1.10.0"
+    "morgan": "^1.10.0",
+    "mqtt": "^5.16.0"
   }
 }

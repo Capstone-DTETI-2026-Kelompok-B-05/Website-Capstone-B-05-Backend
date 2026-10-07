@@ -12,6 +12,8 @@ export const env = {
   port: Number(process.env.PORT),
   mongoUri: process.env.MONGO_URI,
   mqttBrokerUrl: process.env.MQTT_BROKER_URL,
+  mqttUsername: process.env.MQTT_USERNAME,
+  mqttPassword: process.env.MQTT_PASSWORD,
   clientOrigin: process.env.CLIENT_ORIGIN,
   nodeEnv: process.env.NODE_ENV ?? 'development',
   jwtSecret:
