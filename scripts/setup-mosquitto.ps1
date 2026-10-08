@@ -30,5 +30,5 @@ if (-not (Test-Path $passwordFile)) {
 }
 
 Set-Location $backendRoot
-docker compose up -d mosquitto
-docker compose ps mosquitto
+docker compose up -d mongodb mosquitto
+docker compose ps mongodb mosquitto

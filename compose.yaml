@@ -1,4 +1,12 @@
 services:
+  mongodb:
+    image: mongo:7
+    container_name: capstone-mongodb
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - ./mongodb/data:/data/db
   mosquitto:
     image: eclipse-mosquitto:2
     container_name: capstone-mosquitto

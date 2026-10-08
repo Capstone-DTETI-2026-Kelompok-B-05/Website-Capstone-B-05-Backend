@@ -14,6 +14,11 @@ export const env = {
   mqttBrokerUrl: process.env.MQTT_BROKER_URL,
   mqttUsername: process.env.MQTT_USERNAME,
   mqttPassword: process.env.MQTT_PASSWORD,
+  esp32CamMjpegUrl: process.env.ESP32_CAM_MJPEG_URL,
+  cameraFrameToken: process.env.CAMERA_FRAME_TOKEN,
+  frameQueueSize: Number(process.env.FRAME_QUEUE_SIZE ?? 3),
+  maxFrameBytes: Number(process.env.MAX_FRAME_BYTES ?? 1048576),
+  onnxDetectorModule: process.env.ONNX_DETECTOR_MODULE,
   clientOrigin: process.env.CLIENT_ORIGIN,
   nodeEnv: process.env.NODE_ENV ?? 'development',
   jwtSecret:

@@ -41,6 +41,9 @@ export function validateDetectionPayload(payload) {
   if (typeof payload.latensi !== 'number' || !Number.isFinite(payload.latensi) || payload.latensi < 0) {
     throw new Error('latensi must be a non-negative number');
   }
+  if (payload.timestamp !== undefined && (typeof payload.timestamp !== 'string' || Number.isNaN(new Date(payload.timestamp).getTime()))) {
+    throw new Error('timestamp must be a valid ISO date string');
+  }
   return payload;
 }
 
