@@ -9,7 +9,7 @@ export const MQTT_TOPICS = Object.freeze({
 
 const VEHICLE_TYPES = new Set(['bus', 'ambulans', 'damkar', 'mobil', 'motor', 'truk']);
 const PORTAL_TRIGGER_TYPES = new Set(['bus', 'ambulans', 'damkar']);
-const PORTAL_MODES = new Set(['manual', 'otomatis']);
+const PORTAL_MODES = new Set(['manual', 'otomatis', 'automatic', 'auto']);
 const PORTAL_ACTIONS = new Set(['buka', 'tutup']);
 
 function assertObject(value, message) {
