@@ -1,0 +1,13 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: capstone-mosquitto
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:1883:1883"
+      - "127.0.0.1:9001:9001"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+      - ./mosquitto/data:/mosquitto/data
+      - ./mosquitto/log:/mosquitto/log
+    command: mosquitto -c /mosquitto/config/mosquitto.conf -v

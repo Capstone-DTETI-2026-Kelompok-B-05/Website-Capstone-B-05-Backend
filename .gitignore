@@ -7,3 +7,6 @@ coverage/
 dist/
 *.log
 *.onnx
+mosquitto/config/passwordfile
+mosquitto/data/
+mosquitto/log/
