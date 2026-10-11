@@ -18,7 +18,10 @@ export const env = {
   cameraFrameToken: process.env.CAMERA_FRAME_TOKEN,
   frameQueueSize: Number(process.env.FRAME_QUEUE_SIZE ?? 3),
   maxFrameBytes: Number(process.env.MAX_FRAME_BYTES ?? 1048576),
-  onnxDetectorModule: process.env.ONNX_DETECTOR_MODULE,
+  onnxDetectorModule: process.env.ONNX_DETECTOR_MODULE ?? './onnxDetector.js',
+  onnxModelPath: process.env.ONNX_MODEL_PATH ?? 'assets/models/model-portal.onnx',
+  onnxConfidenceThreshold: Number(process.env.ONNX_CONFIDENCE_THRESHOLD ?? 0.25),
+  onnxVehicleType: process.env.ONNX_VEHICLE_TYPE ?? 'bus',
   clientOrigin: process.env.CLIENT_ORIGIN,
   nodeEnv: process.env.NODE_ENV ?? 'development',
   jwtSecret:

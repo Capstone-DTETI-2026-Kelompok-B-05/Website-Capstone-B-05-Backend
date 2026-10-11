@@ -21,7 +21,9 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^8.19.1",
     "morgan": "^1.10.0",
-    "mqtt": "^5.16.0"
+    "mqtt": "^5.16.0",
+    "onnxruntime-node": "^1.30.0",
+    "sharp": "^0.35.5"
   },
   "devDependencies": {
     "artillery": "^2.0.33",
