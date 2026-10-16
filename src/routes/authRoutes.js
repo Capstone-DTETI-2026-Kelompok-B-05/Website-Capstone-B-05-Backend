@@ -23,7 +23,8 @@ function publicUser(user) {
   return {
     id: user._id,
     username: user.username,
-    role: user.role
+    role: user.role,
+    mustChangePassword: user.mustChangePassword
   };
 }
 
@@ -59,6 +60,7 @@ router.put('/password', authenticateToken, async (req, res) => {
   }
 
   user.password = newPassword;
+  user.mustChangePassword = false;
   await user.save();
   return res.json({ success: true, message: 'Password updated successfully' });
 });

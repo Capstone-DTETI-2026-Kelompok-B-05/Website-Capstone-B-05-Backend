@@ -14,6 +14,7 @@ function publicAccount(user) {
     id: user._id,
     username: user.username,
     role: user.role,
+    mustChangePassword: user.mustChangePassword,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt
   };

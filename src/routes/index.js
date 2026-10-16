@@ -5,10 +5,12 @@ import cameraRoutes from './cameraRoutes.js';
 import mqttRoutes from './mqttRoutes.js';
 import analyticsRoutes from './analyticsRoutes.js';
 import streamRoutes from './streamRoutes.js';
+import accessRequestRoutes from './accessRequestRoutes.js';
 
 const router = Router();
 
 router.use('/auth', authRoutes);
+router.use('/access-requests', accessRequestRoutes);
 router.use('/accounts', accountRoutes);
 router.use('/users', accountRoutes);
 router.use('/cameras', cameraRoutes);
