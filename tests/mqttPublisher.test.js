@@ -67,7 +67,7 @@ describe('MQTT publisher payload contracts', () => {
     expect(mqttClient.publish).toHaveBeenCalledWith(
       MQTT_TOPICS.detection,
       JSON.stringify(payload),
-      { qos: 0, retain: false },
+      { qos: 1, retain: false },
       expect.any(Function)
     );
     expect(mqttClient.end).toHaveBeenCalledWith(true);

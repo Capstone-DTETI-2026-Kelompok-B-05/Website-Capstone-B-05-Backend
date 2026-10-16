@@ -65,6 +65,14 @@ function outputDetections(output, confidenceThreshold) {
       bottom: y + height / 2
     });
   }
+  if (process.env.NODE_ENV !== 'production') {
+  const confidences = Array.from({ length: candidates }, (_, index) => output.data[candidates * 4 + index]);
+  console.log('ONNX confidence:', {
+    maximum: Math.max(...confidences),
+    threshold: confidenceThreshold,
+    candidatesAboveThreshold: confidences.filter((value) => value >= confidenceThreshold).length
+  });
+}
   return nonMaximumSuppression(detections);
 }
 
@@ -96,16 +104,19 @@ export async function detectFrame(frame, metadata = {}) {
   });
   const output = result[session.outputNames[0]];
   const detections = outputDetections(output, env.onnxConfidenceThreshold);
+  console.log('ONNX detections:', detections.length, detections);
   const receivedAt = metadata.receivedAt instanceof Date ? metadata.receivedAt : new Date();
   const latency = Math.max(0, Date.now() - receivedAt.getTime());
 
   return detections.map((detection, index) => ({
-    id: `${metadata.cameraId ?? 'camera'}-${Date.now()}-${index}`,
-    jenis: env.onnxVehicleType,
-    conf: detection.conf,
-    zona: true,
-    strobo: false,
-    kecerahan: brightness / (info.width * info.height),
-    latensi: latency
-  }));
+    "id": `${metadata.cameraId ?? 'camera'}-${Date.now()}-${index}`,
+    "jenis": env.onnxVehicleType,
+    "conf": detection.conf,
+    "zona": true,
+    "strobo": false,
+    "kecerahan": brightness / (info.width * info.height),
+    "latensi": latency
+  }
+  
+));
 }

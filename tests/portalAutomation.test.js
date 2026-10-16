@@ -1,5 +1,5 @@
 import { jest } from '@jest/globals';
-import { PortalAutomationController } from '../src/services/portalAutomation.js';
+import { parseMqttPayload, PortalAutomationController } from '../src/services/portalAutomation.js';
 
 const detection = (jenis, zona = true) => ({
   jenis,
@@ -12,6 +12,25 @@ const detection = (jenis, zona = true) => ({
 });
 
 describe('PortalAutomationController', () => {
+  it('parses valid JSON and loose object-style MQTT payloads', () => {
+    expect(parseMqttPayload('{"mode":"manual"}')).toEqual({ mode: 'manual' });
+    expect(parseMqttPayload('{mode:otomatis}')).toEqual({ mode: 'otomatis' });
+    expect(parseMqttPayload('{aksi:buka,jenis:bus,conf:0.65,zona:true}')).toEqual({
+      aksi: 'buka',
+      jenis: 'bus',
+      conf: 0.65,
+      zona: true
+    });
+    expect(parseMqttPayload('{id:camera-01,timestamp:2026-10-16T07:08:51.329Z}')).toEqual({
+      id: 'camera-01',
+      timestamp: '2026-10-16T07:08:51.329Z'
+    });
+  });
+
+  it('rejects payloads that are neither JSON nor supported loose objects', () => {
+    expect(() => parseMqttPayload('{mode:}')).toThrow('Invalid MQTT payload');
+  });
+
   it.each(['bus', 'ambulans', 'damkar'])(
     'opens the portal for authorized %s detections in the zone',
     (jenis) => {
@@ -20,8 +39,8 @@ describe('PortalAutomationController', () => {
 
       controller.handleDetection(detection(jenis));
 
-      expect(publishCommand).toHaveBeenCalledWith({ aksi: 'buka', jenis });
-      expect(controller.portalOpen).toBe(true);
+      expect(publishCommand).toHaveBeenCalledWith({ aksi: 'buka' });
+      expect(controller.portalOpen).toBe(false);
     }
   );
 
@@ -65,7 +84,7 @@ describe('PortalAutomationController', () => {
 
     expect(setTimeoutFn).toHaveBeenCalledWith(expect.any(Function), 1500);
     expect(publishCommand).toHaveBeenCalledWith({ aksi: 'tutup' });
-    expect(controller.portalOpen).toBe(false);
+    expect(controller.portalOpen).toBe(true);
   });
 
   it('does not automate while in manual mode', () => {
@@ -77,5 +96,28 @@ describe('PortalAutomationController', () => {
 
     expect(publishCommand).not.toHaveBeenCalled();
     expect(controller.operationMode).toBe('manual');
+  });
+
+  it('returns to automatic mode after a manual portal action', () => {
+    const publishCommand = jest.fn();
+    const controller = new PortalAutomationController({ publishCommand });
+
+    controller.handleCommand({ mode: 'manual' });
+    controller.handleCommand({ aksi: 'buka' });
+    controller.handleDetection(detection('bus'));
+
+    expect(controller.operationMode).toBe('otomatis');
+    expect(publishCommand).toHaveBeenCalledWith({ aksi: 'buka' });
+  });
+
+  it('retries opening when no portal status confirms the previous command', () => {
+    const publishCommand = jest.fn();
+    const controller = new PortalAutomationController({ publishCommand });
+
+    controller.handleDetection(detection('bus'));
+    controller.handleDetection(detection('bus'));
+
+    expect(publishCommand).toHaveBeenCalledTimes(2);
+    expect(controller.portalOpen).toBe(false);
   });
 });

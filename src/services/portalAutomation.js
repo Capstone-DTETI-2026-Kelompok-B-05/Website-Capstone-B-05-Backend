@@ -13,9 +13,35 @@ function normalizeMode(mode) {
   return null;
 }
 
+const JSON_LITERAL_PATTERN = /^(?:true|false|null|-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?)$/;
+
+export function parseMqttPayload(message) {
+  const payloadText = Buffer.isBuffer(message) ? message.toString() : String(message);
+
+  try {
+    return JSON.parse(payloadText);
+  } catch (jsonError) {
+    const normalizedPayload = payloadText
+      .trim()
+      .replace(/([{,]\s*)([A-Za-z_$][\w$]*)\s*:/g, '$1"$2":')
+      .replace(/(:\s*)([^,}\s]+)\s*(?=,|})/g, (match, prefix, value) => {
+        if (value.startsWith('"') && value.endsWith('"')) return `${prefix}${value}`;
+        return JSON_LITERAL_PATTERN.test(value) ? `${prefix}${value}` : `${prefix}"${value}"`;
+      });
+
+    try {
+      return JSON.parse(normalizedPayload);
+    } catch (normalizedJsonError) {
+      throw new Error(
+        `Invalid MQTT payload: ${normalizedJsonError.message}; original JSON error: ${jsonError.message}`
+      );
+    }
+  }
+}
+
 function parseMessage(message, topic) {
   try {
-    return JSON.parse(message.toString());
+    return parseMqttPayload(message);
   } catch (error) {
     throw new Error(`Invalid JSON received on ${topic}: ${error.message}`);
   }
@@ -38,7 +64,10 @@ export class PortalAutomationController {
 
   handleCommand(payload) {
     validatePortalCommandPayload(payload);
-    if (payload.mode === undefined) return;
+    if (payload.mode === undefined) {
+      this.operationMode = 'otomatis';
+      return;
+    }
 
     const mode = normalizeMode(payload.mode);
     if (!mode) return;
@@ -56,12 +85,27 @@ export class PortalAutomationController {
 
   handleDetection(payload) {
     validateDetectionPayload(payload);
-    if (this.operationMode === 'manual') return;
+    if (this.operationMode === 'manual') {
+      console.log('Portal automation ignored detection because mode is manual:', payload.id);
+      return;
+    }
 
     if (payload.zona === true) {
       this.cancelCloseTimer();
       if (PRIORITY_VEHICLE_SET.has(payload.jenis) && !this.portalOpen) {
-        this.sendCommand({ aksi: 'buka', jenis: payload.jenis });
+        console.log('Portal automation opening portal for detection:', {
+          id: payload.id,
+          jenis: payload.jenis,
+          conf: payload.conf,
+          zona: payload.zona
+        });
+        this.sendCommand({ aksi: 'buka' });
+      } else {
+        console.log('Portal automation did not open portal:', {
+          id: payload.id,
+          jenis: payload.jenis,
+          portalOpen: this.portalOpen
+        });
       }
       return;
     }
@@ -90,8 +134,6 @@ export class PortalAutomationController {
     if (typeof this.publishCommand !== 'function') {
       throw new Error('Portal automation publisher is not configured');
     }
-    if (command.aksi === 'buka') this.portalOpen = true;
-    if (command.aksi === 'tutup') this.portalOpen = false;
     return Promise.resolve(this.publishCommand(command)).catch((error) => {
       console.error('Unable to publish portal automation command:', error);
     });
@@ -110,6 +152,12 @@ export function createPortalAutomation({ onDetection, onPortalStatus } = {}) {
     reconnectPeriod: 5000,
     connectTimeout: 10000
   });
+  let resolveReady;
+  let rejectReady;
+  const ready = new Promise((resolve, reject) => {
+    resolveReady = resolve;
+    rejectReady = reject;
+  });
   const controller = new PortalAutomationController({
     publishCommand: (command) =>
       new Promise((resolve, reject) => {
@@ -121,14 +169,29 @@ export function createPortalAutomation({ onDetection, onPortalStatus } = {}) {
   });
 
   client.on('connect', () => {
+    console.log('Portal automation MQTT connected; subscribing to:', [
+      MQTT_TOPICS.detection,
+      MQTT_TOPICS.portalCommand,
+      MQTT_TOPICS.portalStatus
+    ]);
     client.subscribe([MQTT_TOPICS.detection, MQTT_TOPICS.portalCommand, MQTT_TOPICS.portalStatus], { qos: 1 }, (error) => {
-      if (error) console.error('Unable to subscribe to portal automation topics:', error);
+      if (error) {
+        console.error('Unable to subscribe to portal automation topics:', error);
+        rejectReady(error);
+      } else {
+        console.log('Portal automation MQTT subscriptions active');
+        resolveReady();
+      }
     });
   });
-  client.on('error', (error) => console.error('Portal automation MQTT error:', error));
+  client.on('error', (error) => {
+    console.error('Portal automation MQTT error:', error);
+    rejectReady(error);
+  });
   client.on('message', (topic, message) => {
     try {
       const payload = parseMessage(message, topic);
+      console.log('Portal automation MQTT message received:', topic, payload);
       if (topic === MQTT_TOPICS.detection) controller.handleDetection(payload);
       else if (topic === MQTT_TOPICS.portalCommand) controller.handleCommand(payload);
       else if (topic === MQTT_TOPICS.portalStatus) controller.handleStatus(payload);
@@ -148,6 +211,7 @@ export function createPortalAutomation({ onDetection, onPortalStatus } = {}) {
 
   return {
     controller,
+    ready,
     stop() {
       controller.stop();
       client.end(true);

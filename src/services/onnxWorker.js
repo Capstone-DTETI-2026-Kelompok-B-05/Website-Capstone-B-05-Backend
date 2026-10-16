@@ -22,10 +22,18 @@ export function startOnnxWorker({ pipeline, detectFrame, logger = console } = {}
       if (!Array.isArray(detections)) {
         throw new Error('ONNX detector must return an array of detection payloads');
       }
-      await Promise.all(detections.map((detection) => publishDetection({
-        ...detection,
-        timestamp: detection.timestamp ?? item.receivedAt.toISOString()
-      })));
+      logger.log?.('ONNX detections ready for MQTT:', detections.length);
+
+      await Promise.all(detections.slice(0, 1).map(async (detection) => {
+        const payload = {
+          ...detection,
+          timestamp: detection.timestamp ?? item.receivedAt.toISOString()
+        };
+
+        logger.log?.('Publishing detection:', JSON.stringify(payload));
+        await publishDetection(payload);
+        logger.log?.('Detection published:', payload.id);
+      }));
     } catch (error) {
       logger.error('Unable to process camera frame with ONNX worker:', error);
     } finally {

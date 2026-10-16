@@ -88,13 +88,22 @@ function brokerOptions() {
 
 export async function publishMqtt(topic, payload, options = {}) {
   const client = mqtt.connect(env.mqttBrokerUrl, brokerOptions());
+  const timeoutMs = 10000;
+  const serializedPayload = JSON.stringify(payload);
   try {
     await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        client.removeListener('connect', onConnect);
+        client.removeListener('error', onError);
+        reject(new Error(`Timed out connecting to MQTT broker after ${timeoutMs}ms`));
+      }, timeoutMs);
       const onConnect = () => {
+        clearTimeout(timeout);
         client.removeListener('error', onError);
         resolve();
       };
       const onError = (error) => {
+        clearTimeout(timeout);
         client.removeListener('connect', onConnect);
         reject(error);
       };
@@ -103,18 +112,43 @@ export async function publishMqtt(topic, payload, options = {}) {
     });
 
     await new Promise((resolve, reject) => {
-      client.publish(topic, JSON.stringify(payload), options, (error) => {
+      let settled = false;
+      const timeout = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        client.removeListener('error', onError);
+        reject(new Error(`Timed out publishing MQTT message to ${topic} after ${timeoutMs}ms`));
+      }, timeoutMs);
+      const onError = (error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        reject(error);
+      };
+      client.once('error', onError);
+      client.publish(topic, serializedPayload, options, (error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        client.removeListener('error', onError);
         if (error) reject(error);
         else resolve();
       });
     });
+  } catch (error) {
+    console.error('MQTT publish failed:', {
+      topic,
+      broker: env.mqttBrokerUrl,
+      message: error.message
+    });
+    throw error;
   } finally {
     client.end(true);
   }
 }
 
 export function publishDetection(payload) {
-  return publishMqtt(MQTT_TOPICS.detection, validateDetectionPayload(payload), { qos: 0, retain: false });
+  return publishMqtt(MQTT_TOPICS.detection, validateDetectionPayload(payload), { qos: 1, retain: false });
 }
 
 export function publishPortalStatus(payload) {

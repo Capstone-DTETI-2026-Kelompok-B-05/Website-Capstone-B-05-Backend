@@ -138,7 +138,7 @@ describe('resilience and security edge cases', () => {
 
       expect(mqttClient.publish).toHaveBeenCalledWith(
         'busway/portal/perintah',
-        JSON.stringify({ aksi: 'buka', jenis: 'bus' }),
+        JSON.stringify({ aksi: 'buka' }),
         { qos: 1, retain: false },
         expect.any(Function)
       );

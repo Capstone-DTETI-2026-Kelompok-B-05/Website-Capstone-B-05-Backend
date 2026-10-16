@@ -9,13 +9,14 @@ import { detectFrame } from './src/services/cameraDetector.js';
 
 try {
   await mongoose.connect(env.mongoUri);
-  createPortalAutomation({
+  const portalAutomation = createPortalAutomation({
     onDetection: (payload, controller) =>
       recordDetection(payload, {
         portalOpen: controller.portalOpen,
         operationMode: controller.operationMode
       })
   });
+  await portalAutomation.ready;
   startOnnxWorker({ pipeline: framePipeline, detectFrame });
   app.listen(env.port, () => {
     console.log(`Backend listening on http://localhost:${env.port}`);
