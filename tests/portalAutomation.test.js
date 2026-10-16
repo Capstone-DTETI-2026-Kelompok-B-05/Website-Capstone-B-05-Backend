@@ -76,13 +76,13 @@ describe('PortalAutomationController', () => {
     const controller = new PortalAutomationController({
       publishCommand,
       setTimeoutFn,
-      closeDelayMs: 1500
+      closeDelayMs: 2000
     });
     controller.handleStatus({ terbuka: true });
 
     controller.handleDetection(detection('mobil', false));
 
-    expect(setTimeoutFn).toHaveBeenCalledWith(expect.any(Function), 1500);
+    expect(setTimeoutFn).toHaveBeenCalledWith(expect.any(Function), 2000);
     expect(publishCommand).toHaveBeenCalledWith({ aksi: 'tutup' });
     expect(controller.portalOpen).toBe(true);
   });
@@ -119,5 +119,44 @@ describe('PortalAutomationController', () => {
 
     expect(publishCommand).toHaveBeenCalledTimes(2);
     expect(controller.portalOpen).toBe(false);
+  });
+
+  it('refreshes the two-second close timer while a priority vehicle is detected', () => {
+    const publishCommand = jest.fn();
+    const setTimeoutFn = jest.fn(() => 1);
+    const clearTimeoutFn = jest.fn();
+    const controller = new PortalAutomationController({
+      publishCommand,
+      setTimeoutFn,
+      clearTimeoutFn
+    });
+
+    controller.handleStatus({ terbuka: true });
+    controller.handleDetection(detection('bus'));
+    controller.handleDetection(detection('bus'));
+
+    expect(clearTimeoutFn).toHaveBeenCalledWith(1);
+    expect(setTimeoutFn).toHaveBeenCalledTimes(2);
+    expect(setTimeoutFn).toHaveBeenLastCalledWith(expect.any(Function), 2000);
+    expect(publishCommand).not.toHaveBeenCalled();
+  });
+
+  it('closes two seconds after the last priority detection', () => {
+    const publishCommand = jest.fn();
+    let closeCallback;
+    const controller = new PortalAutomationController({
+      publishCommand,
+      setTimeoutFn: (callback, delay) => {
+        expect(delay).toBe(2000);
+        closeCallback = callback;
+        return 1;
+      }
+    });
+
+    controller.handleStatus({ terbuka: true });
+    controller.handleDetection(detection('bus'));
+    closeCallback();
+
+    expect(publishCommand).toHaveBeenCalledWith({ aksi: 'tutup' });
   });
 });

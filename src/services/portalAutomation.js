@@ -2,7 +2,7 @@ import mqtt from 'mqtt';
 import { env } from '../config/env.js';
 import { MQTT_TOPICS, validateDetectionPayload, validatePortalCommandPayload } from './mqttPublisher.js';
 
-export const AUTO_CLOSE_DELAY_MS = 1500;
+export const AUTO_CLOSE_DELAY_MS = 2000;
 export const PRIORITY_VEHICLE_TYPES = Object.freeze(['bus', 'ambulans', 'damkar']);
 
 const PRIORITY_VEHICLE_SET = new Set(PRIORITY_VEHICLE_TYPES);
@@ -91,7 +91,6 @@ export class PortalAutomationController {
     }
 
     if (payload.zona === true) {
-      this.cancelCloseTimer();
       if (PRIORITY_VEHICLE_SET.has(payload.jenis) && !this.portalOpen) {
         console.log('Portal automation opening portal for detection:', {
           id: payload.id,
@@ -107,6 +106,7 @@ export class PortalAutomationController {
           portalOpen: this.portalOpen
         });
       }
+      if (PRIORITY_VEHICLE_SET.has(payload.jenis)) this.scheduleClose();
       return;
     }
 
