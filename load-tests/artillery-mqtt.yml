@@ -1,0 +1,44 @@
+config:
+  target: "{{ $processEnvironment.MQTT_BROKER_URL }}"
+  processor: "./artillery.processor.cjs"
+  engines:
+    mqtt: {}
+  mqtt:
+    clean: true
+    reconnectPeriod: 0
+    connectTimeout: 10000
+    auth:
+      username: "{{ $processEnvironment.MQTT_USERNAME }}"
+      password: "{{ $processEnvironment.MQTT_PASSWORD }}"
+      clientId: "artillery-{{ $uuid }}"
+  phases:
+    - name: "100 MQTT virtual users"
+      duration: 1
+      arrivalCount: 100
+  ensure:
+    maxErrorRate: 1
+
+scenarios:
+  - name: "Detection throughput: five messages per second"
+    weight: 9
+    flow:
+      - loop:
+          - publish:
+              topic: "busway/deteksi"
+              options:
+                qos: 0
+              payload: '{"jenis":"mobil","id":"{{ $uuid }}","conf":0.94,"zona":false,"strobo":false,"kecerahan":0.65,"latensi":20}'
+          - think: 0.2
+        count: 300
+
+  - name: "Priority detection to portal command latency"
+    weight: 1
+    flow:
+      - function: "resetPortalState"
+      - function: "startPortalCommandLatency"
+      - publish:
+          topic: "busway/deteksi"
+          options:
+            qos: 0
+          payload: '{"jenis":"bus","id":"latency-{{ $uuid }}","conf":0.99,"zona":true,"strobo":true,"kecerahan":0.8,"latensi":10}'
+      - function: "waitForPortalCommand"

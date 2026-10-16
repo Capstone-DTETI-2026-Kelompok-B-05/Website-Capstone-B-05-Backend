@@ -9,7 +9,7 @@ export const MQTT_TOPICS = Object.freeze({
 
 const VEHICLE_TYPES = new Set(['bus', 'ambulans', 'damkar', 'mobil', 'motor', 'truk']);
 const PORTAL_TRIGGER_TYPES = new Set(['bus', 'ambulans', 'damkar']);
-const PORTAL_MODES = new Set(['manual', 'otomatis']);
+const PORTAL_MODES = new Set(['manual', 'otomatis', 'automatic', 'auto']);
 const PORTAL_ACTIONS = new Set(['buka', 'tutup']);
 
 function assertObject(value, message) {
@@ -40,6 +40,9 @@ export function validateDetectionPayload(payload) {
   assertUnitInterval(payload.kecerahan, 'kecerahan');
   if (typeof payload.latensi !== 'number' || !Number.isFinite(payload.latensi) || payload.latensi < 0) {
     throw new Error('latensi must be a non-negative number');
+  }
+  if (payload.timestamp !== undefined && (typeof payload.timestamp !== 'string' || Number.isNaN(new Date(payload.timestamp).getTime()))) {
+    throw new Error('timestamp must be a valid ISO date string');
   }
   return payload;
 }
@@ -85,13 +88,22 @@ function brokerOptions() {
 
 export async function publishMqtt(topic, payload, options = {}) {
   const client = mqtt.connect(env.mqttBrokerUrl, brokerOptions());
+  const timeoutMs = 10000;
+  const serializedPayload = JSON.stringify(payload);
   try {
     await new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        client.removeListener('connect', onConnect);
+        client.removeListener('error', onError);
+        reject(new Error(`Timed out connecting to MQTT broker after ${timeoutMs}ms`));
+      }, timeoutMs);
       const onConnect = () => {
+        clearTimeout(timeout);
         client.removeListener('error', onError);
         resolve();
       };
       const onError = (error) => {
+        clearTimeout(timeout);
         client.removeListener('connect', onConnect);
         reject(error);
       };
@@ -100,18 +112,43 @@ export async function publishMqtt(topic, payload, options = {}) {
     });
 
     await new Promise((resolve, reject) => {
-      client.publish(topic, JSON.stringify(payload), options, (error) => {
+      let settled = false;
+      const timeout = setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        client.removeListener('error', onError);
+        reject(new Error(`Timed out publishing MQTT message to ${topic} after ${timeoutMs}ms`));
+      }, timeoutMs);
+      const onError = (error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        reject(error);
+      };
+      client.once('error', onError);
+      client.publish(topic, serializedPayload, options, (error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timeout);
+        client.removeListener('error', onError);
         if (error) reject(error);
         else resolve();
       });
     });
+  } catch (error) {
+    console.error('MQTT publish failed:', {
+      topic,
+      broker: env.mqttBrokerUrl,
+      message: error.message
+    });
+    throw error;
   } finally {
     client.end(true);
   }
 }
 
 export function publishDetection(payload) {
-  return publishMqtt(MQTT_TOPICS.detection, validateDetectionPayload(payload), { qos: 0, retain: false });
+  return publishMqtt(MQTT_TOPICS.detection, validateDetectionPayload(payload), { qos: 1, retain: false });
 }
 
 export function publishPortalStatus(payload) {
