@@ -3,7 +3,7 @@ import { env } from './src/config/env.js';
 import mongoose from 'mongoose';
 import { createPortalAutomation } from './src/services/portalAutomation.js';
 import { recordDetection } from './src/services/detectionAnalytics.js';
-import { framePipeline } from './src/services/framePipelineInstance.js';
+import { framePipeline, rtspPublisher } from './src/services/framePipelineInstance.js';
 import { startOnnxWorker } from './src/services/onnxWorker.js';
 import { detectFrame } from './src/services/cameraDetector.js';
 
@@ -18,6 +18,13 @@ try {
   });
   await portalAutomation.ready;
   startOnnxWorker({ pipeline: framePipeline, detectFrame });
+  rtspPublisher.on('publisher-error', (error, cameraId) => {
+    console.error(`RTSP publisher error for camera ${cameraId}:`, error.message);
+  });
+  rtspPublisher.on('started', ({ cameraId, rtspUrl }) => {
+    console.log(`RTSP publishing camera ${cameraId} at ${rtspUrl}`);
+  });
+  rtspPublisher.start();
   app.listen(env.port, () => {
     console.log(`Backend listening on http://localhost:${env.port}`);
   });

@@ -24,6 +24,7 @@ export class FramePipeline extends EventEmitter {
     const item = { cameraId, frame, receivedAt: new Date() };
     this.latestFrames.set(cameraId, item);
     this.emit(`frame:${cameraId}`, item);
+    this.emit('frame', item);
 
     if (this.queue.length >= this.maxQueueSize) {
       this.queue.shift();
