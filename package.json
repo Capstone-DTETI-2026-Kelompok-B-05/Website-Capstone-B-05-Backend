@@ -16,17 +16,18 @@
   "dependencies": {
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.7",
+    "dotenv": "^18.0.8",
     "express": "^5.1.0",
+    "fluent-ffmpeg": "^2.1.3",
     "jsonwebtoken": "^9.0.3",
-    "mongoose": "^8.19.1",
+    "mongoose": "^9.11.2",
     "morgan": "^1.10.0",
-    "mqtt": "^5.16.0",
+    "mqtt": "^5.16.1",
     "onnxruntime-node": "^1.30.0",
     "sharp": "^0.35.5"
   },
   "devDependencies": {
-    "artillery": "^2.0.33",
+    "artillery": "^2.0.32",
     "artillery-engine-mqtt": "^1.2.3",
     "jest": "^30.5.2",
     "supertest": "^7.3.1"
