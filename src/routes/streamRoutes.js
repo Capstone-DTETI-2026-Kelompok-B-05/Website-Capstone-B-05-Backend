@@ -11,6 +11,16 @@ router.get('/rtsp/:cameraId', (req, res) => {
   return res.json({ success: true, stream: rtspPublisher.status(req.params.cameraId) });
 });
 
+router.get('/snapshot/:cameraId', (req, res) => {
+  const latest = framePipeline.getLatest(req.params.cameraId);
+  if (!latest) return res.status(404).json({ success: false, message: 'No camera frame is available yet' });
+  res.status(200).set({
+    'Content-Type': 'image/jpeg',
+    'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate'
+  });
+  return res.end(latest.frame);
+});
+
 router.get('/mjpeg/:cameraId', (req, res) => {
   const boundary = 'frame';
   const latest = framePipeline.getLatest(req.params.cameraId);

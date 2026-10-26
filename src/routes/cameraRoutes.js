@@ -12,6 +12,7 @@ function publicCamera(camera) {
     id: camera._id,
     name: camera.name,
     rtspUrl: camera.rtspUrl,
+    detectionZone: camera.detectionZone,
     isActive: camera.isActive,
     assignedPetugas: camera.assignedPetugas,
     createdAt: camera.createdAt,
@@ -25,6 +26,19 @@ function isRtspUrl(value) {
   } catch {
     return false;
   }
+}
+
+function validateDetectionZone(value) {
+  if (value === null) return null;
+  if (!Array.isArray(value) || value.length < 3 || value.length > 20) {
+    return 'detectionZone must contain between 3 and 20 points';
+  }
+  if (value.some(point => !point || typeof point !== 'object'
+    || typeof point.x !== 'number' || !Number.isFinite(point.x) || point.x < 0 || point.x > 1
+    || typeof point.y !== 'number' || !Number.isFinite(point.y) || point.y < 0 || point.y > 1)) {
+    return 'detectionZone points must contain x and y values between 0 and 1';
+  }
+  return null;
 }
 
 async function validateAssignment(assignedPetugas) {
@@ -51,15 +65,17 @@ router.get('/:cameraId', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { name, rtspUrl, isActive = true, assignedPetugas = null } = req.body ?? {};
+  const { name, rtspUrl, isActive = true, assignedPetugas = null, detectionZone = null } = req.body ?? {};
   if (typeof name !== 'string' || !name.trim() || !isRtspUrl(rtspUrl) || typeof isActive !== 'boolean') {
     return res.status(400).json({ success: false, message: 'Name, a valid RTSP URL, and a boolean isActive are required' });
   }
+  const zoneError = validateDetectionZone(detectionZone);
+  if (zoneError) return res.status(400).json({ success: false, message: zoneError });
   const assignmentError = await validateAssignment(assignedPetugas);
   if (assignmentError) return res.status(400).json({ success: false, message: assignmentError });
 
   try {
-    const camera = await Camera.create({ name: name.trim(), rtspUrl: rtspUrl.trim(), isActive, assignedPetugas });
+    const camera = await Camera.create({ name: name.trim(), rtspUrl: rtspUrl.trim(), isActive, assignedPetugas, detectionZone });
     return res.status(201).json({ success: true, camera: publicCamera(camera) });
   } catch (error) {
     if (error.code === 11000) {
@@ -70,7 +86,7 @@ router.post('/', async (req, res) => {
 });
 
 router.patch('/:cameraId', async (req, res) => {
-  const { name, rtspUrl, isActive, assignedPetugas } = req.body ?? {};
+  const { name, rtspUrl, isActive, assignedPetugas, detectionZone } = req.body ?? {};
   const updates = {};
   if (name !== undefined) {
     if (typeof name !== 'string' || !name.trim()) return res.status(400).json({ success: false, message: 'Name must be a non-empty string' });
@@ -88,6 +104,11 @@ router.patch('/:cameraId', async (req, res) => {
     const assignmentError = await validateAssignment(assignedPetugas);
     if (assignmentError) return res.status(400).json({ success: false, message: assignmentError });
     updates.assignedPetugas = assignedPetugas;
+  }
+  if (detectionZone !== undefined) {
+    const zoneError = validateDetectionZone(detectionZone);
+    if (zoneError) return res.status(400).json({ success: false, message: zoneError });
+    updates.detectionZone = detectionZone;
   }
   if (Object.keys(updates).length === 0) return res.status(400).json({ success: false, message: 'At least one camera field is required' });
 

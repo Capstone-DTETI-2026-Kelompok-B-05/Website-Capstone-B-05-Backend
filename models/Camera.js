@@ -12,6 +12,17 @@ const cameraSchema = new mongoose.Schema(
       required: true,
       trim: true
     },
+    detectionZone: {
+      type: [{
+        x: { type: Number, min: 0, max: 1, required: true },
+        y: { type: Number, min: 0, max: 1, required: true }
+      }],
+      default: null,
+      validate: {
+        validator: value => value === null || (value.length >= 3 && value.length <= 20),
+        message: 'detectionZone must contain between 3 and 20 points'
+      }
+    },
     isActive: {
       type: Boolean,
       default: true

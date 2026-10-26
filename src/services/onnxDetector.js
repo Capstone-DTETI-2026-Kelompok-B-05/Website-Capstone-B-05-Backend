@@ -1,7 +1,9 @@
 import ort from 'onnxruntime-node';
 import sharp from 'sharp';
 import path from 'node:path';
+import mongoose from 'mongoose';
 import { env } from '../config/env.js';
+import Camera from '../../models/Camera.js';
 
 const MODEL_WIDTH = 640;
 const MODEL_HEIGHT = 640;
@@ -10,6 +12,7 @@ const IOU_THRESHOLD = 0.45;
 const MAX_DETECTIONS = 20;
 
 let sessionPromise;
+const zoneCache = new Map();
 
 function modelPath() {
   return path.resolve(process.cwd(), env.onnxModelPath);
@@ -37,6 +40,30 @@ function nonMaximumSuppression(detections) {
     if (selected.every((item) => intersectionOverUnion(item, detection) < IOU_THRESHOLD)) {
       selected.push(detection);
       if (selected.length === MAX_DETECTIONS) break;
+    }
+
+    function isInsidePolygon(point, polygon) {
+      let inside = false;
+      for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index++) {
+        const currentPoint = polygon[index];
+        const previousPoint = polygon[previous];
+        const intersects = ((currentPoint.y > point.y) !== (previousPoint.y > point.y))
+          && point.x < ((previousPoint.x - currentPoint.x) * (point.y - currentPoint.y))
+            / (previousPoint.y - currentPoint.y) + currentPoint.x;
+        if (intersects) inside = !inside;
+      }
+      return inside;
+    }
+
+    async function getDetectionZone(cameraId) {
+      if (!cameraId) return null;
+      const cached = zoneCache.get(cameraId);
+      if (cached && cached.expiresAt > Date.now()) return cached.zone;
+      if (!mongoose.isValidObjectId(cameraId)) return null;
+      const camera = await Camera.findById(cameraId).select('detectionZone').lean();
+      const zone = camera?.detectionZone ?? null;
+      zoneCache.set(cameraId, { zone, expiresAt: Date.now() + 5000 });
+      return zone;
     }
   }
   return selected;
@@ -107,8 +134,15 @@ export async function detectFrame(frame, metadata = {}) {
   console.log('ONNX detections:', detections.length, detections);
   const receivedAt = metadata.receivedAt instanceof Date ? metadata.receivedAt : new Date();
   const latency = Math.max(0, Date.now() - receivedAt.getTime());
+  const zone = await getDetectionZone(metadata.cameraId);
+  const zoneDetections = zone
+    ? detections.filter(detection => isInsidePolygon({
+      x: ((detection.left + detection.right) / 2) / MODEL_WIDTH,
+      y: detection.bottom / MODEL_HEIGHT
+    }, zone))
+    : detections;
 
-  return detections.map((detection, index) => ({
+  return zoneDetections.map((detection, index) => ({
     "id": `${metadata.cameraId ?? 'camera'}-${Date.now()}-${index}`,
     "jenis": env.onnxVehicleType,
     "conf": detection.conf,
