@@ -3,7 +3,7 @@ import { env } from './src/config/env.js';
 import mongoose from 'mongoose';
 import { createPortalAutomation } from './src/services/portalAutomation.js';
 import { recordDetection } from './src/services/detectionAnalytics.js';
-import { framePipeline, rtspPublisher } from './src/services/framePipelineInstance.js';
+import { framePipeline, objectTracker, rtspPublisher } from './src/services/framePipelineInstance.js';
 import { startOnnxWorker } from './src/services/onnxWorker.js';
 import { detectFrame } from './src/services/cameraDetector.js';
 
@@ -17,7 +17,7 @@ try {
       })
   });
   await portalAutomation.ready;
-  startOnnxWorker({ pipeline: framePipeline, detectFrame });
+  startOnnxWorker({ pipeline: framePipeline, detectFrame, tracker: objectTracker });
   rtspPublisher.on('publisher-error', (error, cameraId) => {
     console.error(`RTSP publisher error for camera ${cameraId}:`, error.message);
   });

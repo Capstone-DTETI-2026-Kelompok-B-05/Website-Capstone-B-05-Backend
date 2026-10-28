@@ -42,31 +42,32 @@ function nonMaximumSuppression(detections) {
       if (selected.length === MAX_DETECTIONS) break;
     }
 
-    function isInsidePolygon(point, polygon) {
-      let inside = false;
-      for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index++) {
-        const currentPoint = polygon[index];
-        const previousPoint = polygon[previous];
-        const intersects = ((currentPoint.y > point.y) !== (previousPoint.y > point.y))
-          && point.x < ((previousPoint.x - currentPoint.x) * (point.y - currentPoint.y))
-            / (previousPoint.y - currentPoint.y) + currentPoint.x;
-        if (intersects) inside = !inside;
-      }
-      return inside;
-    }
-
-    async function getDetectionZone(cameraId) {
-      if (!cameraId) return null;
-      const cached = zoneCache.get(cameraId);
-      if (cached && cached.expiresAt > Date.now()) return cached.zone;
-      if (!mongoose.isValidObjectId(cameraId)) return null;
-      const camera = await Camera.findById(cameraId).select('detectionZone').lean();
-      const zone = camera?.detectionZone ?? null;
-      zoneCache.set(cameraId, { zone, expiresAt: Date.now() + 5000 });
-      return zone;
-    }
   }
   return selected;
+}
+
+function isInsidePolygon(point, polygon) {
+  let inside = false;
+  for (let index = 0, previous = polygon.length - 1; index < polygon.length; previous = index++) {
+    const currentPoint = polygon[index];
+    const previousPoint = polygon[previous];
+    const intersects = ((currentPoint.y > point.y) !== (previousPoint.y > point.y))
+      && point.x < ((previousPoint.x - currentPoint.x) * (point.y - currentPoint.y))
+        / (previousPoint.y - currentPoint.y) + currentPoint.x;
+    if (intersects) inside = !inside;
+  }
+  return inside;
+}
+
+async function getDetectionZone(cameraId) {
+  if (!cameraId) return null;
+  const cached = zoneCache.get(cameraId);
+  if (cached && cached.expiresAt > Date.now()) return cached.zone;
+  if (!mongoose.isValidObjectId(cameraId)) return null;
+  const camera = await Camera.findById(cameraId).select('detectionZone').lean();
+  const zone = camera?.detectionZone ?? null;
+  zoneCache.set(cameraId, { zone, expiresAt: Date.now() + 5000 });
+  return zone;
 }
 
 function outputDetections(output, confidenceThreshold) {
@@ -135,18 +136,25 @@ export async function detectFrame(frame, metadata = {}) {
   const receivedAt = metadata.receivedAt instanceof Date ? metadata.receivedAt : new Date();
   const latency = Math.max(0, Date.now() - receivedAt.getTime());
   const zone = await getDetectionZone(metadata.cameraId);
-  const zoneDetections = zone
-    ? detections.filter(detection => isInsidePolygon({
+  const zoneDetections = detections.map(detection => ({
+    ...detection,
+    zona: zone ? isInsidePolygon({
       x: ((detection.left + detection.right) / 2) / MODEL_WIDTH,
       y: detection.bottom / MODEL_HEIGHT
-    }, zone))
-    : detections;
+    }, zone) : true
+  }));
 
   return zoneDetections.map((detection, index) => ({
     "id": `${metadata.cameraId ?? 'camera'}-${Date.now()}-${index}`,
     "jenis": env.onnxVehicleType,
     "conf": detection.conf,
-    "zona": true,
+    "zona": detection.zona,
+    "box": {
+      "left": detection.left,
+      "top": detection.top,
+      "right": detection.right,
+      "bottom": detection.bottom
+    },
     "strobo": false,
     "kecerahan": brightness / (info.width * info.height),
     "latensi": latency
