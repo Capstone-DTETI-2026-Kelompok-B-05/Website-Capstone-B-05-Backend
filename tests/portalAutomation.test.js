@@ -159,4 +159,26 @@ describe('PortalAutomationController', () => {
 
     expect(publishCommand).toHaveBeenCalledWith({ aksi: 'tutup' });
   });
+
+  it('keeps the portal close timer alive while an in-zone vehicle heartbeat arrives', () => {
+    const publishCommand = jest.fn();
+    const callbacks = [];
+    const clearTimeoutFn = jest.fn();
+    const controller = new PortalAutomationController({
+      publishCommand,
+      setTimeoutFn: callback => {
+        callbacks.push(callback);
+        return callbacks.length;
+      },
+      clearTimeoutFn
+    });
+
+    controller.handleStatus({ terbuka: true });
+    controller.handleDetection(detection('bus'));
+    controller.handleDetection({ ...detection('bus'), id: 'camera-01-track-1', isNewZoneEntry: false });
+
+    expect(clearTimeoutFn).toHaveBeenCalledWith(1);
+    expect(callbacks).toHaveLength(2);
+    expect(publishCommand).not.toHaveBeenCalled();
+  });
 });

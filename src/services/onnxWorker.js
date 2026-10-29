@@ -27,9 +27,10 @@ export function startOnnxWorker({ pipeline, detectFrame, tracker = new ObjectTra
       const newEntries = trackedDetections.filter(detection => detection.isNewZoneEntry);
       logger.log?.('ONNX detections ready for MQTT:', trackedDetections.length, 'new zone entries:', newEntries.length);
 
-      await Promise.all(newEntries.map(async (detection) => {
+      await Promise.all(trackedDetections.map(async (detection) => {
         const { box, isNewZoneEntry, ...payload } = detection;
         Object.assign(payload, {
+          isNewZoneEntry,
           timestamp: detection.timestamp ?? item.receivedAt.toISOString()
         });
 
