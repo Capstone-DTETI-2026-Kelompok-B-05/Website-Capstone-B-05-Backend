@@ -195,7 +195,9 @@ export function createPortalAutomation({ onDetection, onPortalStatus } = {}) {
       if (topic === MQTT_TOPICS.detection) controller.handleDetection(payload);
       else if (topic === MQTT_TOPICS.portalCommand) controller.handleCommand(payload);
       else if (topic === MQTT_TOPICS.portalStatus) controller.handleStatus(payload);
-      if (topic === MQTT_TOPICS.detection && typeof onDetection === 'function') {
+      if (topic === MQTT_TOPICS.detection
+        && payload.isNewZoneEntry !== false
+        && typeof onDetection === 'function') {
         Promise.resolve(onDetection(payload, controller)).catch((error) => {
           console.error('Unable to record detection analytics:', error);
         });
