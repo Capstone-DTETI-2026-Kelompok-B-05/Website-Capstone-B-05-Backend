@@ -26,7 +26,8 @@ const detectionPayload = (jenis) => ({
   zona: true,
   strobo: false,
   kecerahan: 0.7,
-  latensi: 35
+  latensi: 35,
+  box: { left: 0.1, top: 0.2, right: 0.6, bottom: 0.8 }
 });
 
 describe('MQTT publisher payload contracts', () => {
@@ -56,6 +57,13 @@ describe('MQTT publisher payload contracts', () => {
       .toThrow('zona must be a boolean');
     expect(() => validateDetectionPayload({ ...detectionPayload('bus'), conf: '0.9' }))
       .toThrow('conf must be a number between 0 and 1');
+  });
+
+  it('rejects invalid bounding boxes', () => {
+    expect(() => validateDetectionPayload({
+      ...detectionPayload('bus'),
+      box: { left: 0.8, top: 0.2, right: 0.6, bottom: 0.8 }
+    })).toThrow('box must have positive width and height');
   });
 
   it('publishes detection data unchanged to busway/deteksi', async () => {

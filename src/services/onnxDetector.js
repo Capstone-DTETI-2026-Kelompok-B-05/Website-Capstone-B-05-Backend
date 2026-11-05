@@ -196,10 +196,10 @@ export async function detectFrame(frame, metadata = {}) {
     "conf": detection.conf,
     "zona": detection.zona,
     "box": {
-      "left": detection.left,
-      "top": detection.top,
-      "right": detection.right,
-      "bottom": detection.bottom
+      "left": Math.max(0, Math.min(1, detection.left / MODEL_WIDTH)),
+      "top": Math.max(0, Math.min(1, detection.top / MODEL_HEIGHT)),
+      "right": Math.max(0, Math.min(1, detection.right / MODEL_WIDTH)),
+      "bottom": Math.max(0, Math.min(1, detection.bottom / MODEL_HEIGHT))
     },
     "strobo": false,
     "kecerahan": brightness / (info.width * info.height),

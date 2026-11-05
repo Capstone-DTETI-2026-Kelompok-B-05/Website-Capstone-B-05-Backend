@@ -28,6 +28,16 @@ function assertUnitInterval(value, field) {
   }
 }
 
+function validateBoundingBox(box) {
+  assertObject(box, 'box must be an object');
+  for (const field of ['left', 'top', 'right', 'bottom']) {
+    assertUnitInterval(box[field], `box.${field}`);
+  }
+  if (box.left >= box.right || box.top >= box.bottom) {
+    throw new Error('box must have positive width and height');
+  }
+}
+
 export function validateDetectionPayload(payload) {
   assertObject(payload, 'Detection payload must be an object');
   if (!VEHICLE_TYPES.has(payload.jenis)) throw new Error('jenis is not a supported vehicle type');
@@ -41,6 +51,7 @@ export function validateDetectionPayload(payload) {
   if (typeof payload.latensi !== 'number' || !Number.isFinite(payload.latensi) || payload.latensi < 0) {
     throw new Error('latensi must be a non-negative number');
   }
+  if (payload.box !== undefined) validateBoundingBox(payload.box);
   if (payload.timestamp !== undefined && (typeof payload.timestamp !== 'string' || Number.isNaN(new Date(payload.timestamp).getTime()))) {
     throw new Error('timestamp must be a valid ISO date string');
   }

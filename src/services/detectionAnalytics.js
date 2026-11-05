@@ -11,6 +11,7 @@ export function detectionEventFromPayload(payload, portalState) {
     strobo: payload.strobo,
     brightness: payload.kecerahan,
     latencyMs: payload.latensi,
+    box: payload.box,
     detectedAt: payload.timestamp ? new Date(payload.timestamp) : new Date(),
     portalOpen: portalState.portalOpen,
     portalMode: portalState.operationMode

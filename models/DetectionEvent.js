@@ -38,6 +38,12 @@ const detectionEventSchema = new mongoose.Schema(
       required: true,
       min: 0
     },
+    box: {
+      left: { type: Number, min: 0, max: 1 },
+      top: { type: Number, min: 0, max: 1 },
+      right: { type: Number, min: 0, max: 1 },
+      bottom: { type: Number, min: 0, max: 1 }
+    },
     detectedAt: {
       type: Date,
       required: true,
