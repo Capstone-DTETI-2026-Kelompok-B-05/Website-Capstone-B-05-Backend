@@ -8,6 +8,10 @@ import { startOnnxWorker } from './src/services/onnxWorker.js';
 import { detectFrame } from './src/services/cameraDetector.js';
 
 try {
+  await mongoose.connect(process.env.MONGO_URI, {
+  serverSelectionTimeoutMS: 10000,
+  family: 4
+});
   await mongoose.connect(env.mongoUri);
   const portalAutomation = createPortalAutomation({
     onDetection: (payload, controller) =>

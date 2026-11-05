@@ -28,7 +28,10 @@ export const env = {
   onnxDetectorModule: process.env.ONNX_DETECTOR_MODULE ?? './onnxDetector.js',
   onnxModelPath: process.env.ONNX_MODEL_PATH ?? 'assets/models/model-portal.onnx',
   onnxConfidenceThreshold: Number(process.env.ONNX_CONFIDENCE_THRESHOLD ?? 0.25),
-  onnxVehicleType: process.env.ONNX_VEHICLE_TYPE ?? 'bus',
+  onnxVehicleClasses: (process.env.ONNX_VEHICLE_CLASSES ?? 'bus,ambulans,damkar')
+    .split(',')
+    .map((vehicleType) => vehicleType.trim())
+    .filter(Boolean),
   clientOrigin: process.env.CLIENT_ORIGIN,
   nodeEnv: process.env.NODE_ENV ?? 'development',
   jwtSecret:

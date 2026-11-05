@@ -70,37 +70,83 @@ async function getDetectionZone(cameraId) {
   return zone;
 }
 
-function outputDetections(output, confidenceThreshold) {
-  const [batch, channels, candidates] = output.dims;
-  if (batch !== 1 || channels < 5) {
+export function outputDetections(output, confidenceThreshold, vehicleClasses = env.onnxVehicleClasses) {
+  const [batch, firstDimension, secondDimension] = output.dims;
+  const isEndToEndOutput = secondDimension === 6;
+  if (batch !== 1 || secondDimension < 1 || (!isEndToEndOutput && firstDimension < 5)) {
     throw new Error(`Unsupported ONNX output shape: [${output.dims.join(', ')}]`);
   }
+  if (!Array.isArray(vehicleClasses) || vehicleClasses.length === 0) {
+    throw new Error('ONNX_VEHICLE_CLASSES must contain at least one vehicle class');
+  }
+
+  const channels = isEndToEndOutput ? secondDimension : firstDimension;
+  const candidates = isEndToEndOutput ? firstDimension : secondDimension;
+  if (!isEndToEndOutput && channels === 5 && vehicleClasses.length > 1) {
+    throw new Error(
+      `ONNX model output has one class, but ${vehicleClasses.length} vehicle classes are configured; `
+      + 'export a multi-class model with 4 + class-score channels'
+    );
+  }
+  const classCount = channels - 4;
 
   const detections = [];
+  let rawMaximumConfidence = 0;
   for (let index = 0; index < candidates; index += 1) {
-    const x = output.data[index];
-    const y = output.data[candidates + index];
-    const width = output.data[candidates * 2 + index];
-    const height = output.data[candidates * 3 + index];
-    const confidence = output.data[candidates * 4 + index];
+    const rowOffset = index * 6;
+    const x = isEndToEndOutput ? output.data[rowOffset] : output.data[index];
+    const y = isEndToEndOutput ? output.data[rowOffset + 1] : output.data[candidates + index];
+    const right = isEndToEndOutput
+      ? output.data[rowOffset + 2]
+      : x + output.data[candidates * 2 + index] / 2;
+    const bottom = isEndToEndOutput
+      ? output.data[rowOffset + 3]
+      : y + output.data[candidates * 3 + index] / 2;
+    let classId = 0;
+    let confidence = isEndToEndOutput
+      ? output.data[rowOffset + 4]
+      : output.data[candidates * 4 + index];
+    if (isEndToEndOutput) {
+      classId = output.data[rowOffset + 5];
+    } else if (classCount > 1) {
+      confidence = Number.NEGATIVE_INFINITY;
+      for (let candidateClassId = 0; candidateClassId < classCount; candidateClassId += 1) {
+        const classConfidence = output.data[candidates * (4 + candidateClassId) + index];
+        if (classConfidence > confidence) {
+          confidence = classConfidence;
+          classId = candidateClassId;
+        }
+      }
+    }
+    if (Number.isFinite(confidence)) {
+      rawMaximumConfidence = Math.max(rawMaximumConfidence, confidence);
+    }
     if (!Number.isFinite(confidence) || confidence < confidenceThreshold) continue;
+    if (!Number.isInteger(classId) || classId < 0 || classId >= vehicleClasses.length) {
+      throw new Error(
+        `ONNX model returned class ${classId}, but only ${vehicleClasses.length} vehicle classes are configured`
+      );
+    }
 
     detections.push({
+      classId,
+      jenis: vehicleClasses[classId],
       conf: Math.max(0, Math.min(1, confidence)),
-      left: x - width / 2,
-      top: y - height / 2,
-      right: x + width / 2,
-      bottom: y + height / 2
+      left: isEndToEndOutput ? x : x - output.data[candidates * 2 + index] / 2,
+      top: isEndToEndOutput ? y : y - output.data[candidates * 3 + index] / 2,
+      right,
+      bottom
     });
   }
   if (process.env.NODE_ENV !== 'production') {
-  const confidences = Array.from({ length: candidates }, (_, index) => output.data[candidates * 4 + index]);
-  console.log('ONNX confidence:', {
-    maximum: Math.max(...confidences),
-    threshold: confidenceThreshold,
-    candidatesAboveThreshold: confidences.filter((value) => value >= confidenceThreshold).length
-  });
-}
+    const confidences = detections.map(({ conf }) => conf);
+    console.log('ONNX confidence:', {
+      rawMaximum: rawMaximumConfidence,
+      maximum: confidences.length > 0 ? Math.max(...confidences) : 0,
+      threshold: confidenceThreshold,
+      candidatesAboveThreshold: detections.length
+    });
+  }
   return nonMaximumSuppression(detections);
 }
 
@@ -146,7 +192,7 @@ export async function detectFrame(frame, metadata = {}) {
 
   return zoneDetections.map((detection, index) => ({
     "id": `${metadata.cameraId ?? 'camera'}-${Date.now()}-${index}`,
-    "jenis": env.onnxVehicleType,
+    "jenis": detection.jenis,
     "conf": detection.conf,
     "zona": detection.zona,
     "box": {
