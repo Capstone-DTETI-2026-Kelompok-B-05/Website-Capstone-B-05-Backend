@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import DetectionEvent from '../../models/DetectionEvent.js';
 import { authenticateToken } from '../middlewares/authMiddleware.js';
+import { getLiveDetections } from '../services/liveDetectionState.js';
 
 const router = Router();
 router.use(authenticateToken);
@@ -42,6 +43,13 @@ router.get('/history', async (req, res) => {
     success: true,
     events,
     pagination: { page, limit, total, pages: Math.ceil(total / limit) }
+  });
+});
+
+router.get('/live/:cameraId', (req, res) => {
+  return res.json({
+    success: true,
+    detections: getLiveDetections(req.params.cameraId)
   });
 });
 

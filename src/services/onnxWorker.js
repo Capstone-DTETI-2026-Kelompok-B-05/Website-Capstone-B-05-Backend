@@ -1,12 +1,13 @@
 import { publishDetection } from './mqttPublisher.js';
-import { ObjectTracker } from './objectTracker.js';
+import { ByteTrack } from './byteTrack.js';
 
 export function startOnnxWorker({
   pipeline,
   detectFrame,
-  tracker = new ObjectTracker(),
+  tracker = new ByteTrack(),
   logger = console,
-  publish = publishDetection
+  publish = publishDetection,
+  onTrackedDetections = () => {}
 } = {}) {
   if (!pipeline || typeof detectFrame !== 'function') {
     throw new Error('A frame pipeline and detectFrame function are required');
@@ -33,8 +34,14 @@ export function startOnnxWorker({
         throw new Error('ONNX detector must return an array of detection payloads');
       }
       const trackedDetections = tracker.update(item.cameraId, detections, item.receivedAt.getTime());
+      onTrackedDetections(item.cameraId, trackedDetections.map(detection => ({
+        ...detection,
+        vehicleType: detection.jenis,
+        confidence: detection.conf,
+        timestamp: detection.timestamp ?? item.receivedAt.toISOString()
+      })));
       const newEntries = trackedDetections.filter(detection => detection.isNewZoneEntry);
-      logger.log?.('ONNX detections ready for MQTT:', trackedDetections.length, 'new zone entries:', newEntries.length);
+      logger.log?.('ONNX detections ready:', trackedDetections.length, 'new zone entries:', newEntries.length);
 
       await Promise.all(trackedDetections.map(async (detection) => {
         const { isNewZoneEntry, ...payload } = detection;

@@ -9,9 +9,31 @@ function intersectionOverUnion(first, second) {
   return intersection / (firstArea + secondArea - intersection || 1);
 }
 
+function centerDistance(first, second) {
+  const firstCenter = {
+    x: (first.left + first.right) / 2,
+    y: (first.top + first.bottom) / 2
+  };
+  const secondCenter = {
+    x: (second.left + second.right) / 2,
+    y: (second.top + second.bottom) / 2
+  };
+  return Math.hypot(firstCenter.x - secondCenter.x, firstCenter.y - secondCenter.y);
+}
+
+function boxSize(box) {
+  return Math.max(box.right - box.left, box.bottom - box.top);
+}
+
 export class ObjectTracker {
-  constructor({ iouThreshold = 0.4, maxMissedFrames = 5, maxInactiveMs = 3000 } = {}) {
+  constructor({
+    iouThreshold = 0.25,
+    maxCenterDistanceRatio = 1.5,
+    maxMissedFrames = 5,
+    maxInactiveMs = 3000
+  } = {}) {
     this.iouThreshold = iouThreshold;
+    this.maxCenterDistanceRatio = maxCenterDistanceRatio;
     this.maxMissedFrames = maxMissedFrames;
     this.maxInactiveMs = maxInactiveMs;
     this.nextTrackId = 1;
@@ -26,13 +48,20 @@ export class ObjectTracker {
 
     for (const detection of detections) {
       let bestTrack = null;
-      let bestIou = this.iouThreshold;
+      let bestScore = -Infinity;
       for (const track of available) {
         if (track.vehicleType !== detection.jenis) continue;
         const iou = intersectionOverUnion(track.box, detection.box);
-        if (iou >= bestIou) {
+        const distance = centerDistance(track.box, detection.box);
+        const maxDistance = Math.max(boxSize(track.box), boxSize(detection.box))
+          * this.maxCenterDistanceRatio;
+        const matches = iou >= this.iouThreshold || distance <= maxDistance;
+        if (matches) {
+          const score = iou + (1 - Math.min(distance / Math.max(maxDistance, Number.EPSILON), 1)) * 0.1;
+          if (score > bestScore) {
+            bestScore = score;
           bestTrack = track;
-          bestIou = iou;
+          }
         }
       }
 

@@ -6,6 +6,7 @@ import { recordDetection } from './src/services/detectionAnalytics.js';
 import { framePipeline, objectTracker, rtspPublisher } from './src/services/framePipelineInstance.js';
 import { startOnnxWorker } from './src/services/onnxWorker.js';
 import { detectFrame } from './src/services/cameraDetector.js';
+import { setLiveDetections } from './src/services/liveDetectionState.js';
 
 try {
   await mongoose.connect(process.env.MONGO_URI, {
@@ -21,7 +22,12 @@ try {
       })
   });
   await portalAutomation.ready;
-  startOnnxWorker({ pipeline: framePipeline, detectFrame, tracker: objectTracker });
+  startOnnxWorker({
+    pipeline: framePipeline,
+    detectFrame,
+    tracker: objectTracker,
+    onTrackedDetections: setLiveDetections
+  });
   rtspPublisher.on('publisher-error', (error, cameraId) => {
     console.error(`RTSP publisher error for camera ${cameraId}:`, error.message);
   });

@@ -9,13 +9,22 @@ const detection = (left, top, right, bottom, zona = true, jenis = 'bus') => ({
 
 describe('object tracker', () => {
   it('keeps the same ID for a matching object and only marks the first zone entry', () => {
-    const tracker = new ObjectTracker({ iouThreshold: 0.4 });
+    const tracker = new ObjectTracker();
     const first = tracker.update('camera-01', [detection(100, 100, 200, 300)])[0];
     const second = tracker.update('camera-01', [detection(105, 105, 205, 305)])[0];
 
     expect(second.id).toBe(first.id);
     expect(first.isNewZoneEntry).toBe(true);
     expect(second.isNewZoneEntry).toBe(false);
+  });
+
+  it('keeps the same ID when a vehicle moves with low box overlap', () => {
+    const tracker = new ObjectTracker({ iouThreshold: 0.4, maxCenterDistanceRatio: 1.5 });
+    const first = tracker.update('camera-01', [detection(100, 100, 140, 180)])[0];
+    const second = tracker.update('camera-01', [detection(150, 100, 190, 180)])[0];
+
+    expect(second.id).toBe(first.id);
+    expect(second.box).toEqual({ left: 150, top: 100, right: 190, bottom: 180 });
   });
 
   it('counts a tracked object when it enters the zone', () => {

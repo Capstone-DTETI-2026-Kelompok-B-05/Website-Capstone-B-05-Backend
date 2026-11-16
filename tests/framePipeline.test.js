@@ -53,4 +53,44 @@ describe('camera frame pipeline', () => {
     }));
     worker.stop();
   });
+
+  it('publishes tracking updates while preserving the same track ID', async () => {
+    const pipeline = new FramePipeline({ maxQueueSize: 2 });
+    const detections = [
+      {
+        id: 'vehicle-1',
+        jenis: 'bus',
+        conf: 0.9,
+        zona: true,
+        box: { left: 0.1, top: 0.2, right: 0.3, bottom: 0.8 },
+        strobo: false,
+        kecerahan: 0.7,
+        latensi: 10
+      },
+      {
+        id: 'vehicle-2',
+        jenis: 'bus',
+        conf: 0.9,
+        zona: true,
+        box: { left: 0.12, top: 0.2, right: 0.32, bottom: 0.8 },
+        strobo: false,
+        kecerahan: 0.7,
+        latensi: 10
+      }
+    ];
+    const detectFrame = jest.fn()
+      .mockResolvedValueOnce([detections[0]])
+      .mockResolvedValueOnce([detections[1]]);
+    const publish = jest.fn().mockResolvedValue(undefined);
+    const worker = startOnnxWorker({ pipeline, detectFrame, publish });
+
+    pipeline.accept('camera-01', Buffer.from('one'));
+    await new Promise((resolve) => setImmediate(resolve));
+    pipeline.accept('camera-01', Buffer.from('two'));
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(publish).toHaveBeenCalledTimes(2);
+    expect(publish.mock.calls[0][0].id).toBe(publish.mock.calls[1][0].id);
+    worker.stop();
+  });
 });
