@@ -9,11 +9,14 @@ import { detectFrame } from './src/services/cameraDetector.js';
 import { setLiveDetections } from './src/services/liveDetectionState.js';
 
 try {
-  await mongoose.connect(process.env.MONGO_URI, {
-  serverSelectionTimeoutMS: 10000,
-  family: 4
-});
-  await mongoose.connect(env.mongoUri);
+  const connectMongo = () => mongoose.connect(env.mongoUri, {
+    serverSelectionTimeoutMS: 5000,
+    connectTimeoutMS: 5000
+  }).catch(error => {
+    console.error('MongoDB connection unavailable; retrying analytics connection:', error.message);
+    setTimeout(connectMongo, 5000);
+  });
+  void connectMongo();
   const portalAutomation = createPortalAutomation({
     onDetection: (payload, controller) =>
       recordDetection(payload, {
@@ -21,7 +24,6 @@ try {
         operationMode: controller.operationMode
       })
   });
-  await portalAutomation.ready;
   startOnnxWorker({
     pipeline: framePipeline,
     detectFrame,

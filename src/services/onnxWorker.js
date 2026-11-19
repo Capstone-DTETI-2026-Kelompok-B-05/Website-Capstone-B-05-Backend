@@ -34,16 +34,17 @@ export function startOnnxWorker({
         throw new Error('ONNX detector must return an array of detection payloads');
       }
       const trackedDetections = tracker.update(item.cameraId, detections, item.receivedAt.getTime());
-      onTrackedDetections(item.cameraId, trackedDetections.map(detection => ({
+      const inZoneDetections = trackedDetections.filter(detection => detection.zona === true);
+      onTrackedDetections(item.cameraId, inZoneDetections.map(detection => ({
         ...detection,
         vehicleType: detection.jenis,
         confidence: detection.conf,
         timestamp: detection.timestamp ?? item.receivedAt.toISOString()
       })));
-      const newEntries = trackedDetections.filter(detection => detection.isNewZoneEntry);
-      logger.log?.('ONNX detections ready:', trackedDetections.length, 'new zone entries:', newEntries.length);
+      const newEntries = inZoneDetections.filter(detection => detection.isNewZoneEntry);
+      logger.log?.('ONNX detections ready:', inZoneDetections.length, 'new zone entries:', newEntries.length);
 
-      await Promise.all(trackedDetections.map(async (detection) => {
+      void Promise.all(inZoneDetections.map(async (detection) => {
         const { isNewZoneEntry, ...payload } = detection;
         Object.assign(payload, {
           isNewZoneEntry,
@@ -53,7 +54,9 @@ export function startOnnxWorker({
         logger.log?.('Publishing detection:', JSON.stringify(payload));
         await publish(payload);
         logger.log?.('Detection published:', payload.id);
-      }));
+      })).catch(error => {
+        logger.error?.('Unable to publish detection:', error);
+      });
     } catch (error) {
       logger.error('Unable to process camera frame with ONNX worker:', error);
     } finally {

@@ -10,9 +10,11 @@ const MODEL_HEIGHT = 640;
 const DEFAULT_CONFIDENCE_THRESHOLD = 0.25;
 const IOU_THRESHOLD = 0.45;
 const MAX_DETECTIONS = 20;
+const ZONE_REFRESH_TIMEOUT_MS = 10000;
 
 let sessionPromise;
 const zoneCache = new Map();
+const zoneRefreshes = new Map();
 
 function modelPath() {
   return path.resolve(process.cwd(), env.onnxModelPath);
@@ -59,15 +61,47 @@ function isInsidePolygon(point, polygon) {
   return inside;
 }
 
-async function getDetectionZone(cameraId) {
+async function refreshDetectionZone(cameraId) {
+  if (zoneRefreshes.has(cameraId)) return zoneRefreshes.get(cameraId);
+  if (!mongoose.isValidObjectId(cameraId) || mongoose.connection.readyState !== 1) return null;
+
+  const refresh = (async () => {
+    let timeout;
+    try {
+      const lookup = Camera.findById(cameraId).select('detectionZone').lean().exec();
+      const camera = await Promise.race([
+        lookup,
+        new Promise((_, reject) => {
+          timeout = setTimeout(
+            () => reject(new Error('MongoDB zone lookup timed out')),
+            ZONE_REFRESH_TIMEOUT_MS
+          );
+        })
+      ]);
+      const zone = camera?.detectionZone ?? null;
+      zoneCache.set(cameraId, { zone, expiresAt: Date.now() + 5000 });
+      return zone;
+    } catch (error) {
+      console.error('Unable to refresh detection zone:', cameraId, error.message);
+      return null;
+    } finally {
+      if (timeout) clearTimeout(timeout);
+      zoneRefreshes.delete(cameraId);
+    }
+  })();
+  zoneRefreshes.set(cameraId, refresh);
+  return refresh;
+}
+
+export function getDetectionZone(cameraId) {
   if (!cameraId) return null;
   const cached = zoneCache.get(cameraId);
-  if (cached && cached.expiresAt > Date.now()) return cached.zone;
-  if (!mongoose.isValidObjectId(cameraId)) return null;
-  const camera = await Camera.findById(cameraId).select('detectionZone').lean();
-  const zone = camera?.detectionZone ?? null;
-  zoneCache.set(cameraId, { zone, expiresAt: Date.now() + 5000 });
-  return zone;
+  if (cached) {
+    if (cached.expiresAt <= Date.now()) void refreshDetectionZone(cameraId);
+    return cached.zone;
+  }
+  void refreshDetectionZone(cameraId);
+  return null;
 }
 
 export function outputDetections(output, confidenceThreshold, vehicleClasses = env.onnxVehicleClasses) {
@@ -177,11 +211,16 @@ export async function detectFrame(frame, metadata = {}) {
     [session.inputNames[0]]: new ort.Tensor('float32', input, [1, 3, MODEL_HEIGHT, MODEL_WIDTH])
   });
   const output = result[session.outputNames[0]];
-  const detections = outputDetections(output, env.onnxConfidenceThreshold);
+  // ByteTrack needs low-confidence detections for its second association pass.
+  const detectorConfidenceThreshold = Math.min(
+    env.onnxConfidenceThreshold,
+    env.trackerLowConfidenceThreshold
+  );
+  const detections = outputDetections(output, detectorConfidenceThreshold);
   console.log('ONNX detections:', detections.length, detections);
   const receivedAt = metadata.receivedAt instanceof Date ? metadata.receivedAt : new Date();
   const latency = Math.max(0, Date.now() - receivedAt.getTime());
-  const zone = await getDetectionZone(metadata.cameraId);
+  const zone = getDetectionZone(metadata.cameraId);
   const zoneDetections = detections.map(detection => ({
     ...detection,
     zona: zone ? isInsidePolygon({

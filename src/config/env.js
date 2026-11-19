@@ -16,7 +16,7 @@ export const env = {
   mqttPassword: process.env.MQTT_PASSWORD,
   esp32CamMjpegUrl: process.env.ESP32_CAM_MJPEG_URL,
   cameraFrameToken: process.env.CAMERA_FRAME_TOKEN,
-  rtspPublishEnabled: process.env.RTSP_PUBLISH_ENABLED !== 'false',
+  rtspPublishEnabled: process.env.RTSP_PUBLISH_ENABLED === 'true',
   rtspFfmpegPath: process.env.RTSP_FFMPEG_PATH ?? 'ffmpeg',
   rtspOutputBaseUrl: (process.env.RTSP_OUTPUT_BASE_URL ?? 'rtsp://127.0.0.1:8554/cameras').replace(/\/$/, ''),
   rtspFps: Number(process.env.RTSP_FPS ?? 10),

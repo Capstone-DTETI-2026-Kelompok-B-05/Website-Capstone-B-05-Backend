@@ -44,6 +44,15 @@ describe('PortalAutomationController', () => {
     }
   );
 
+  it('does not open the portal below the vehicle confidence threshold', () => {
+    const publishCommand = jest.fn();
+    const controller = new PortalAutomationController({ publishCommand });
+
+    controller.handleDetection({ ...detection('bus'), conf: 0.85 });
+
+    expect(publishCommand).not.toHaveBeenCalled();
+  });
+
   it.each(['mobil', 'motor', 'truk'])(
     'keeps the portal closed for unauthorized %s detections',
     (jenis) => {
@@ -157,6 +166,26 @@ describe('PortalAutomationController', () => {
     controller.handleDetection(detection('bus'));
     closeCallback();
 
+    expect(publishCommand).toHaveBeenCalledWith({ aksi: 'tutup' });
+  });
+
+  it('does not publish a duplicate close command while close is pending', () => {
+    const publishCommand = jest.fn();
+    let closeCallback;
+    const controller = new PortalAutomationController({
+      publishCommand,
+      setTimeoutFn: (callback) => {
+        closeCallback = callback;
+        return 1;
+      }
+    });
+
+    controller.handleStatus({ terbuka: true });
+    controller.handleDetection(detection('bus'));
+    closeCallback();
+    closeCallback();
+
+    expect(publishCommand).toHaveBeenCalledTimes(1);
     expect(publishCommand).toHaveBeenCalledWith({ aksi: 'tutup' });
   });
 

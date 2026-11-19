@@ -2,7 +2,7 @@ import mqtt from 'mqtt';
 import { env } from '../config/env.js';
 import { MQTT_TOPICS, validateDetectionPayload, validatePortalCommandPayload } from './mqttPublisher.js';
 
-export const AUTO_CLOSE_DELAY_MS = 2000;
+export const AUTO_CLOSE_DELAY_MS = 3000;
 export const PRIORITY_VEHICLE_TYPES = Object.freeze(['bus', 'ambulans', 'damkar']);
 
 const PRIORITY_VEHICLE_SET = new Set(PRIORITY_VEHICLE_TYPES);
@@ -56,6 +56,7 @@ export class PortalAutomationController {
     this.operationMode = 'otomatis';
     this.portalOpen = false;
     this.closeTimer = null;
+    this.closeCommandPending = false;
   }
 
   setPublishCommand(publishCommand) {
@@ -81,6 +82,7 @@ export class PortalAutomationController {
       throw new Error('Portal status payload must contain a boolean terbuka');
     }
     this.portalOpen = payload.terbuka;
+    if (!payload.terbuka) this.closeCommandPending = false;
   }
 
   handleDetection(payload) {
@@ -91,7 +93,11 @@ export class PortalAutomationController {
     }
 
     if (payload.zona === true) {
-      if (PRIORITY_VEHICLE_SET.has(payload.jenis) && !this.portalOpen) {
+      if (
+        PRIORITY_VEHICLE_SET.has(payload.jenis)
+        && payload.conf > env.onnxConfidenceThreshold
+        && !this.portalOpen
+      ) {
         console.log('Portal automation opening portal for detection:', {
           id: payload.id,
           jenis: payload.jenis,
@@ -103,6 +109,8 @@ export class PortalAutomationController {
         console.log('Portal automation did not open portal:', {
           id: payload.id,
           jenis: payload.jenis,
+          conf: payload.conf,
+          requiredConfidence: env.onnxConfidenceThreshold,
           portalOpen: this.portalOpen
         });
       }
@@ -117,7 +125,8 @@ export class PortalAutomationController {
     this.cancelCloseTimer();
     this.closeTimer = this.setTimeoutFn(() => {
       this.closeTimer = null;
-      if (this.operationMode === 'otomatis' && this.portalOpen) {
+      if (this.operationMode === 'otomatis' && this.portalOpen && !this.closeCommandPending) {
+        this.closeCommandPending = true;
         this.sendCommand({ aksi: 'tutup' });
       }
     }, this.closeDelayMs);

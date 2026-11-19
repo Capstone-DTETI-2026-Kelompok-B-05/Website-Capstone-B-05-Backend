@@ -93,4 +93,45 @@ describe('camera frame pipeline', () => {
     expect(publish.mock.calls[0][0].id).toBe(publish.mock.calls[1][0].id);
     worker.stop();
   });
+
+  it('does not publish or expose detections outside the configured zone', async () => {
+    const pipeline = new FramePipeline({ maxQueueSize: 2 });
+    const detections = [
+      {
+        id: 'outside-1',
+        jenis: 'bus',
+        conf: 0.9,
+        zona: false,
+        box: { left: 0.1, top: 0.2, right: 0.3, bottom: 0.8 },
+        strobo: false,
+        kecerahan: 0.7,
+        latensi: 10
+      },
+      {
+        id: 'inside-1',
+        jenis: 'bus',
+        conf: 0.9,
+        zona: true,
+        box: { left: 0.4, top: 0.2, right: 0.6, bottom: 0.8 },
+        strobo: false,
+        kecerahan: 0.7,
+        latensi: 10
+      }
+    ];
+    const detectFrame = jest.fn().mockResolvedValue(detections);
+    const publish = jest.fn().mockResolvedValue(undefined);
+    const onTrackedDetections = jest.fn();
+    const worker = startOnnxWorker({ pipeline, detectFrame, publish, onTrackedDetections });
+
+    pipeline.accept('camera-01', Buffer.from('jpeg'));
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(publish).toHaveBeenCalledTimes(1);
+    expect(publish.mock.calls[0][0]).toEqual(expect.objectContaining({ zona: true }));
+    expect(onTrackedDetections).toHaveBeenCalledWith(
+      'camera-01',
+      [expect.objectContaining({ zona: true })]
+    );
+    worker.stop();
+  });
 });

@@ -4,7 +4,7 @@ import { RtspPublisher } from './rtspPublisher.js';
 import { ByteTrack } from './byteTrack.js';
 
 export const framePipeline = new FramePipeline({
-  maxQueueSize: env.frameQueueSize,
+  maxQueueSize: Math.min(env.frameQueueSize, 1),
   maxFrameBytes: env.maxFrameBytes
 });
 

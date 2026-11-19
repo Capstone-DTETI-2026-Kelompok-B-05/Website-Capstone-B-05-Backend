@@ -78,7 +78,7 @@ describe('MQTT publisher payload contracts', () => {
       { qos: 1, retain: false },
       expect.any(Function)
     );
-    expect(mqttClient.end).toHaveBeenCalledWith(true);
+    expect(mqttClient.end).not.toHaveBeenCalled();
   });
 
   it('publishes retained portal status messages', async () => {

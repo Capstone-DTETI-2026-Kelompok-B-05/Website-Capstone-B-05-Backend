@@ -158,8 +158,54 @@ export async function publishMqtt(topic, payload, options = {}) {
   }
 }
 
+let detectionClient;
+let detectionClientConnecting;
+
+function getDetectionClient() {
+  if (detectionClient?.connected) return Promise.resolve(detectionClient);
+  if (detectionClientConnecting) return detectionClientConnecting;
+
+  detectionClientConnecting = new Promise((resolve, reject) => {
+    const client = mqtt.connect(env.mqttBrokerUrl, {
+      ...brokerOptions(),
+      reconnectPeriod: 1000,
+      keepalive: 30
+    });
+    detectionClient = client;
+
+    const timeout = setTimeout(() => {
+      reject(new Error(`Timed out connecting MQTT detection publisher after 10000ms`));
+    }, 10000);
+
+    const onConnect = () => {
+      clearTimeout(timeout);
+      client.removeListener('error', onError);
+      resolve(client);
+    };
+    const onError = (error) => {
+      if (!client.connected) reject(error);
+    };
+    client.once('connect', onConnect);
+    client.once('error', onError);
+  }).finally(() => {
+    detectionClientConnecting = undefined;
+  });
+
+  return detectionClientConnecting;
+}
+
 export function publishDetection(payload) {
-  return publishMqtt(MQTT_TOPICS.detection, validateDetectionPayload(payload), { qos: 1, retain: false });
+  const validatedPayload = validateDetectionPayload(payload);
+  return getDetectionClient().then(client => new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error(`Timed out publishing MQTT message to ${MQTT_TOPICS.detection} after 3000ms`));
+    }, 3000);
+    client.publish(MQTT_TOPICS.detection, JSON.stringify(validatedPayload), { qos: 1, retain: false }, (error) => {
+      clearTimeout(timeout);
+      if (error) reject(error);
+      else resolve();
+    });
+  }));
 }
 
 export function publishPortalStatus(payload) {
